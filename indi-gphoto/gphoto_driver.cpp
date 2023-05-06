@@ -829,15 +829,20 @@ static int download_image(gphoto_driver *gphoto, CameraFilePath *fn, int fd)
             DEBUGFDEVICE(device, INDI::Logger::DBG_DEBUG, "gp_file_new_from_fd failed (%s)", gp_result_as_string(result));
     }
 
+DEBUGFDEVICE(device, INDI::Logger::DBG_DEBUG, "downloading (%s)", gphoto->filename);
+DEBUGFDEVICE(device, INDI::Logger::DBG_DEBUG, "folder (%s)", fn->folder);
+DEBUGFDEVICE(device, INDI::Logger::DBG_DEBUG, "name (%s)", fn->name);
     result = gp_camera_file_get(gphoto->camera, fn->folder, fn->name, GP_FILE_TYPE_NORMAL, gphoto->camerafile,
                                 gphoto->context);
+
+                                DEBUGFDEVICE(device, INDI::Logger::DBG_DEBUG, "downloaded (%s)", gphoto->filename);
 
     //if (!(gphoto->command & DSLR_CMD_ABORT))
     //    DEBUGFDEVICE(device, INDI::Logger::DBG_DEBUG, "Downloading image (%s) in folder (%s)", fn->name, fn->folder);
 
     if (result != GP_OK)
     {
-        DEBUGFDEVICE(device, INDI::Logger::DBG_ERROR, "Error downloading image from camera: %s", gp_result_as_string(result));
+        DEBUGFDEVICE(device, INDI::Logger::DBG_ERROR, "Error downloading image from camera: %s, %d", gp_result_as_string(result), result);
         gp_file_free(gphoto->camerafile);
         gphoto->camerafile = nullptr;
         return result;
@@ -1018,6 +1023,8 @@ static int download_image(gphoto_driver *gphoto, CameraFilePath *fn, int fd)
             DEBUGFDEVICE(device, INDI::Logger::DBG_DEBUG, "Closing camera file descriptor failed (%s)", gp_result_as_string(result));
         gphoto->camerafile = nullptr;
     }
+
+    DEBUGFDEVICE(device, INDI::Logger::DBG_DEBUG, "download end (%s)", gphoto->filename);
 
     return GP_OK;
 }
@@ -1426,6 +1433,7 @@ int gphoto_read_exposure_fd(gphoto_driver *gphoto, int fd)
                 if (downloadComplete)
                 {
                     pthread_mutex_unlock(&gphoto->mutex);
+                    DEBUGDEVICE(device, INDI::Logger::DBG_DEBUG, "download complete");
                     return GP_OK;
                 }
                 DEBUGFDEVICE(device, INDI::Logger::DBG_DEBUG, "Event timed out #%d, retrying...", ++timeoutCounter);
@@ -1441,6 +1449,7 @@ int gphoto_read_exposure_fd(gphoto_driver *gphoto, int fd)
                 DEBUGFDEVICE(device, INDI::Logger::DBG_DEBUG, "Got unexpected message: %d", event);
         }
     }
+    DEBUGDEVICE(device, INDI::Logger::DBG_DEBUG, "end");
     return GP_OK;
 }
 

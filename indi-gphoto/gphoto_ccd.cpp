@@ -1165,6 +1165,9 @@ bool GPhotoCCD::grabImage()
     size_t memsize = 0;
     int naxis = 2, w = 0, h = 0, bpp = 8;
 
+        LOG_INFO("grab image");
+
+
     if (SDCardImageS[SD_CARD_IGNORE_IMAGE].s == ISS_ON)
     {
         PrimaryCCD.setFrameBufferSize(0);
@@ -1194,6 +1197,7 @@ bool GPhotoCCD::grabImage()
         }
         else
         {
+            LOG_INFO("gphoto_read_exposure_fd");
             int fd = mkstemp(filename);
             int ret = gphoto_read_exposure_fd(gphotodrv, fd);
             if (ret != GP_OK || fd == -1)
@@ -1224,8 +1228,11 @@ bool GPhotoCCD::grabImage()
         if (ExposureRequest > 3)
             LOG_INFO("Exposure done, downloading image...");
 
+        LOG_INFO("extension");
+
         if (strcasecmp(extension, "jpg") == 0 || strcasecmp(extension, "jpeg") == 0)
         {
+            LOG_INFO("jpg");
             if (read_jpeg(filename, &memptr, &memsize, &naxis, &w, &h))
             {
                 LOG_ERROR("Exposure failed to parse jpeg.");
@@ -1240,6 +1247,7 @@ bool GPhotoCCD::grabImage()
         }
         else
         {
+            LOGF_INFO("raw: %s", filename);
             char bayer_pattern[8] = {};
 
             if (read_libraw(filename, &memptr, &memsize, &naxis, &w, &h, &bpp, bayer_pattern))
@@ -1261,10 +1269,9 @@ bool GPhotoCCD::grabImage()
             SetCCDCapability(GetCCDCapability() | CCD_HAS_BAYER);
         }
 
-        if (EncodeFormatSP[FORMAT_FITS].getState() == ISS_ON)
-            PrimaryCCD.setImageExtension("fits");
-        else
-            PrimaryCCD.setImageExtension("xisf");
+        LOG_INFO("extension done");
+
+        PrimaryCCD.setImageExtension("fits");
 
         uint16_t subW = PrimaryCCD.getSubW();
         uint16_t subH = PrimaryCCD.getSubH();
