@@ -1213,6 +1213,21 @@ int gphoto_start_exposure(gphoto_driver *gphoto, uint32_t exptime_usec, int mirr
             DEBUGDEVICE(device, INDI::Logger::DBG_DEBUG, "Using DSUSB to open shutter...");
             gphoto->dsusb->openShutter();
         }
+        else if (gphoto->bulb_widget)
+        {
+            DEBUGFDEVICE(device, INDI::Logger::DBG_DEBUG, "Using internal bulb widget:%s", gphoto->bulb_widget->name);
+
+            // Check if the internal bulb widget is eosremoterelease, and if yes, set it accordingly
+            if (strcmp(gphoto->bulb_widget->name, "eosremoterelease") == 0)
+            {
+                gphoto_set_widget_num(gphoto, gphoto->bulb_widget, EOS_PRESS_FULL); //600D eosremoterelease PRESS FULL
+            }
+            // Otherwise use the regular bulb widget
+            else
+            {
+                gphoto_set_widget_num(gphoto, gphoto->bulb_widget, TRUE);
+            }
+        }
         // Otherwise open regular remote serial shutter port
         else if (gphoto->bulb_port[0])
         {
@@ -1236,21 +1251,7 @@ int gphoto_start_exposure(gphoto_driver *gphoto, uint32_t exptime_usec, int mirr
             ioctl(gphoto->bulb_fd, TIOCMBIS, &RTS_flag);
         }
         // Otherwise, let's fallback to the internal bulb widget
-        else if (gphoto->bulb_widget)
-        {
-            DEBUGFDEVICE(device, INDI::Logger::DBG_DEBUG, "Using internal bulb widget:%s", gphoto->bulb_widget->name);
 
-            // Check if the internal bulb widget is eosremoterelease, and if yes, set it accordingly
-            if (strcmp(gphoto->bulb_widget->name, "eosremoterelease") == 0)
-            {
-                gphoto_set_widget_num(gphoto, gphoto->bulb_widget, EOS_PRESS_FULL); //600D eosremoterelease PRESS FULL
-            }
-            // Otherwise use the regular bulb widget
-            else
-            {
-                gphoto_set_widget_num(gphoto, gphoto->bulb_widget, TRUE);
-            }
-        }
         // else we fail
         else
         {
@@ -1556,7 +1557,7 @@ int gphoto_get_iso_current(gphoto_driver *gphoto)
     return gphoto->iso_widget->value.index;
 }
 
-gphoto_driver *gphoto_open(Camera *camera, GPContext *context, const char *model, const char *port,
+gphoto_driver *gphoto_open(Camera *camera, GPContext *context, const char *model1, const char *port1,
                            const char *shutter_release_port)
 {
     gphoto_driver *gphoto;
@@ -1564,8 +1565,10 @@ gphoto_driver *gphoto_open(Camera *camera, GPContext *context, const char *model
     CameraAbilities a;
     GPPortInfo pi;
     int result = 0, index = 0;
+    const char* model = "Olympus E-M10";
+    const char* port = "ip:192.168.0.10";
 
-    DEBUGDEVICE(device, INDI::Logger::DBG_DEBUG, "libgphoto2 info:");
+    DEBUGFDEVICE(device, INDI::Logger::DBG_DEBUG, "libgphoto2 info (model: %s, port: %s):", model, port);
     const char **libgphotoVerionInfo = gp_library_version(GP_VERSION_SHORT);
     for (const char **verionInfo = libgphotoVerionInfo; *verionInfo; verionInfo++)
     {
@@ -1607,6 +1610,15 @@ gphoto_driver *gphoto_open(Camera *camera, GPContext *context, const char *model
                 return nullptr;
             }
         }
+
+
+
+        for (int x = 0; x < gp_abilities_list_count(abilities); x++) {
+            CameraAbilities ab;
+		    gp_abilities_list_get_abilities (abilities, x, &ab);
+            DEBUGFDEVICE(device, INDI::Logger::DBG_DEBUG, "Model: %s", ab.model);
+            
+	    }
 
         /* First lookup the model / driver */
         index = gp_abilities_list_lookup_model(abilities, model);
@@ -1731,6 +1743,7 @@ gphoto_driver *gphoto_open(Camera *camera, GPContext *context, const char *model
 
     if ((gphoto->exposure_widget = find_widget(gphoto, "shutterspeed2")) ||
             (gphoto->exposure_widget = find_widget(gphoto, "shutterspeed")) ||
+            (gphoto->exposure_widget = find_widget(gphoto, "shutspeedvalue")) ||
             (gphoto->exposure_widget = find_widget(gphoto, "eos-shutterspeed")))
     {
         gphoto->exposureList = parse_shutterspeed(gphoto, gphoto->exposure_widget);
@@ -1801,6 +1814,7 @@ gphoto_driver *gphoto_open(Camera *camera, GPContext *context, const char *model
         DEBUGDEVICE(device, INDI::Logger::DBG_DEBUG, "No bulb widget found.");
 
     // Check for autoexposuremode widget for some cameras
+    DEBUGDEVICE(device, INDI::Logger::DBG_DEBUG, "Autoexposure Widget...");
     if ((gphoto->autoexposuremode_widget = find_widget(gphoto, "autoexposuremode")) != nullptr)
     {
         DEBUGFDEVICE(device, INDI::Logger::DBG_DEBUG, "Autoexposure Widget: %s", gphoto->autoexposuremode_widget->name);
@@ -1808,6 +1822,7 @@ gphoto_driver *gphoto_open(Camera *camera, GPContext *context, const char *model
                      gphoto->autoexposuremode_widget->choices[(uint8_t)gphoto->autoexposuremode_widget->value.index]);
     }
 
+    DEBUGDEVICE(device, INDI::Logger::DBG_DEBUG, "Capture Target Widget...");
     // Check for capture target widget, used to set where image is stored (RAM vs SD Card)
     if ((gphoto->capturetarget_widget = find_widget(gphoto, "capturetarget")) != nullptr)
     {
@@ -1818,6 +1833,7 @@ gphoto_driver *gphoto_open(Camera *camera, GPContext *context, const char *model
                          gphoto->capturetarget_widget->name);
     }
 
+    DEBUGDEVICE(device, INDI::Logger::DBG_DEBUG, "ViewFinder Widget...");
     // Check viewfinder widget to force mirror down after live preview if needed
     if ((gphoto->viewfinder_widget = find_widget(gphoto, "viewfinder")) != nullptr)
     {
@@ -1826,6 +1842,7 @@ gphoto_driver *gphoto_open(Camera *camera, GPContext *context, const char *model
                      (gphoto->viewfinder_widget->value.toggle == 0) ? "Off" : "On");
     }
 
+    DEBUGDEVICE(device, INDI::Logger::DBG_DEBUG, "Focus Widget...");
     if ((gphoto->focus_widget = find_widget(gphoto, "manualfocusdrive")) != nullptr ||
             (gphoto->focus_widget = find_widget(gphoto, "manualfocus")) != nullptr)
     {
@@ -1840,6 +1857,7 @@ gphoto_driver *gphoto_open(Camera *camera, GPContext *context, const char *model
     }
 
     // Find Manufacturer
+    DEBUGDEVICE(device, INDI::Logger::DBG_DEBUG, "Manufacturer Widget...");
     if ((widget = find_widget(gphoto, "manufacturer")) != nullptr)
     {
         DEBUGFDEVICE(device, INDI::Logger::DBG_DEBUG, "Manufacturer: %s", widget->value.text);
@@ -1847,19 +1865,24 @@ gphoto_driver *gphoto_open(Camera *camera, GPContext *context, const char *model
     }
 
     // Find Model
+    DEBUGDEVICE(device, INDI::Logger::DBG_DEBUG, "Model Widget...");
     if ((widget = find_widget(gphoto, "cameramodel")) != nullptr || (widget = find_widget(gphoto, "model")) != nullptr)
     {
         DEBUGFDEVICE(device, INDI::Logger::DBG_DEBUG, "Model: %s", widget->value.text);
         gphoto->model = widget->value.text;
+    } else {
+        gphoto->model = (char *) model;
     }
     // Make sure manufacturer is set to something useful
     if (gphoto->manufacturer == nullptr)
         gphoto->manufacturer = gphoto->model;
 
+    DEBUGFDEVICE(device, INDI::Logger::DBG_DEBUG, "Model Widget...(%s)", gphoto->model);
     if (strstr(gphoto->manufacturer, "Canon"))
         gphoto->supports_temperature = true;
 
     // Check for user
+    DEBUGDEVICE(device, INDI::Logger::DBG_DEBUG, "Check for user...");
     if (shutter_release_port)
     {
         strncpy(gphoto->bulb_port, shutter_release_port, sizeof(gphoto->bulb_port));
