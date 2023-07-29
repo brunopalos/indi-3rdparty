@@ -1250,8 +1250,23 @@ bool GPhotoCCD::grabImage()
         {
             LOGF_INFO("raw: %s", filename);
             char bayer_pattern[8] = {};
+            auto libraw_ok = false;
 
-            if (read_libraw(filename, &memptr, &memsize, &naxis, &w, &h, &bpp, bayer_pattern))
+            // In case the file read operation fails due to some disk delay (unlikely)
+            // Try again before giving up.
+            for (int i = 0; i < 2; i++)
+            {
+                // On error, try again in 500ms
+                if (read_libraw(filename, &memptr, &memsize, &naxis, &w, &h, &bpp, bayer_pattern))
+                    usleep(500000);
+                else
+                {
+                    libraw_ok = true;
+                    break;
+                }
+            }
+
+            if (libraw_ok == false)
             {
                 LOG_ERROR("Exposure failed to parse raw image.");
                 if (!isSimulation())
